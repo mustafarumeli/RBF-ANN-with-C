@@ -2,14 +2,14 @@
 #include <gsl\gsl_linalg.h>
 #include <string.h>
 #include <stdlib.h>
-#define MAX 20000
+#define MAX 863
 #define SUPERMAX MAX*MAX
-#define CLUSTERCOUNT 10
+#define CLUSTERCOUNT 45
 #define OUTPUTCOUNT 2
 #define CLUOUTCOUNT (CLUSTERCOUNT * OUTPUTCOUNT)
 #define SUPERCLUSTERCOUNT (CLUOUTCOUNT + 1)
-#define INPUTDIMENSIONSIZE 14
-
+#define INPUTDIMENSIONSIZE 2
+#include <time.h>
 #include <math.h>
 
 typedef struct Node //We constructed a struct for each point  and center 
@@ -21,6 +21,17 @@ typedef struct Centroid //For differ centroids from nodes
 	double* Points;
 } Centroid;
 
+void delay(int milliseconds)
+{
+	long pause;
+	clock_t now, then;
+
+	pause = milliseconds * (CLOCKS_PER_SEC / 1000);
+	now = then = clock();
+	while ((now - then) < pause)
+		now = clock();
+}
+void delay(int);
 double** initiateMatrix(int x, int y); //For simplifing initiate matrices we created this function 
 Centroid* Kmeans(Node* X, int xDataSize, Centroid* initial_centroids, int max_iter); //For calculating KMeans 
 int FindMin(double arry[MAX], int size);//For finding minimum of an array
@@ -53,18 +64,19 @@ int main()
 	int i = 0;
 	Node nodes[MAX];
 	int  classify[MAX];
-	FILE *fstream = fopen("C:\\Users\\zuzu\\source\\repos\\Project3\\datasetNew.csv", "r");
+	FILE *fstream = fopen("dataset.csv", "r");
+	printf("Starting reading Data \n");
+	delay(1000);
 	if (fstream == NULL)
 	{
 		printf("\n file opening failed ");
-		return -1;
+	return -1;
 	}
 	while ((line = fgets(buffer, sizeof(buffer), fstream)) != NULL && i <= MAX)
 	{
 		record = strtok(line, ",");
 		nodes[i].Points = malloc(sizeof(double) * INPUTDIMENSIONSIZE);
 		int c = 0;
-		//printf("%d\n", i);    //here you can put the record into the array as per your requirement.
 		while (record != NULL)
 		{
 
@@ -86,12 +98,20 @@ int main()
 		}
 
 	}
+	printf("Data Reading is completed %d line of data is read\n", i);
+	delay(500);
 	double* betas = malloc(CLUOUTCOUNT * sizeof(double));
 	Centroid* centers = malloc(CLUOUTCOUNT * sizeof(Centroid));
+	printf("Starting to train Rbf\n");
+	delay(500);
 	double** theta = RbfTrainer(nodes, classify, CLUSTERCOUNT, centers, betas);
+	printf("Rbf is trained \n");
+	delay(500);
 	int correctCount = 0;
 	Node ErrorNodes[MAX];// = malloc(sizeof(Node) * MAX);
 	int errorCounter = 0;
+	printf("Started to evaluate Rbfn \n");
+	delay(500);
 	for (size_t i = 0; i < MAX; i++)
 	{
 		double* scores = EvaluateRBFN(centers, betas, theta, nodes[i]);
@@ -119,8 +139,10 @@ int main()
 		}
 
 	}
+	printf("Rbf Evaluated\n");
+	delay(500);
 	double acc = ((double)correctCount / MAX);
-	printf("ACC: %f", acc * 100.0);
+	printf("Acuracy of Rbfn  is with %d Hidden Layers is %f", CLUSTERCOUNT, acc * 100.0);
 	getch();
 	return 0;
 }
@@ -324,7 +346,9 @@ double** RbfTrainer(Node xTrain[MAX], int yTrain[MAX], int centersPerCat, Centro
 	double** ycFull = initiateMatrix(OUTPUTCOUNT, MAX);
 
 	int lastplace = 0;
-	for (size_t i = 0; i < OUTPUTCOUNT; i++)
+	printf("Started to identifiy clusters\n");
+	delay(500);
+	for (size_t i = 1; i <= OUTPUTCOUNT; i++)
 	{
 		Node* XC = malloc(MAX * sizeof(Node));
 		int xcCounter = 0;
@@ -334,21 +358,35 @@ double** RbfTrainer(Node xTrain[MAX], int yTrain[MAX], int centersPerCat, Centro
 			{				
 				XC[xcCounter] = xTrain[j];
 				xcCounter++;
-				ycFull[i][j] = 1;
+				ycFull[i-1][j] = 1;
 			}
 			else
 			{
-				ycFull[i][j] = 0;
+				ycFull[i-1][j] = 0;
 			}
 		}
-
+		printf("Prepering the initial Centroids for %d th ouput\n",i);
+		delay(500);
 		Centroid* centro = PrepareInitialCentroids(XC);
+		printf("Initial Centroids found for %d th ouput\n", i);
+		delay(500);
+		printf("Starting to find Actual Centroids With Kmeans\n");
+		delay(500);
 		Centroid* newCentro = Kmeans(XC, xcCounter, centro, 100);
+		printf("Actual Centroids Found With Kmeans\n");
+		delay(500);
 		int* membership = malloc(MAX * sizeof(int));
+		printf("Starting to find Memberships of Centroids for Output %d\n", i);
+		delay(500);
 		membership = findClosestCentroids(XC, xcCounter, newCentro, CLUSTERCOUNT);
+		printf("Memberships of Centroids for Output %d Is Found\n", i);
+		delay(500);
 		double* betas = malloc(sizeof(double) * CLUSTERCOUNT);
+		printf("Starting to calculate Beta values for Output %d\n",i);
+		delay(500);
 		betas = ComputeRBFBetas(XC, xcCounter, newCentro, membership);
-
+		printf("Beta values for Output %d is found \n", i);
+		delay(500);
 		for (size_t k = lastplace; k < CLUSTERCOUNT + lastplace; k++)
 		{
 			betaFull[k] = betas[k - lastplace];
@@ -358,7 +396,8 @@ double** RbfTrainer(Node xTrain[MAX], int yTrain[MAX], int centersPerCat, Centro
 		lastplace += CLUSTERCOUNT;
 	}
 
-
+	printf("Starting to find Activation Values\n");
+	delay(500);
 	double** x_active = initiateMatrix(MAX, SUPERCLUSTERCOUNT);
 	for (size_t counter = 0; counter < MAX; counter++)
 	{
@@ -373,14 +412,18 @@ double** RbfTrainer(Node xTrain[MAX], int yTrain[MAX], int centersPerCat, Centro
 		{
 			x_active[counter][i + 1] = z[i];
 		}
-
 	}
+	delay(500);
+	printf("Activation Values has been found\n");
+	delay(500);
+	printf("Started to find Theta values \n");
+	delay(500);
 	double** transposed = GetTranspose(x_active, MAX, SUPERCLUSTERCOUNT);
 	double** multiplied = MatrixMultiply(transposed, x_active, SUPERCLUSTERCOUNT, SUPERCLUSTERCOUNT, MAX);
 	double** pinv = inverse(multiplied, SUPERCLUSTERCOUNT);
 	double** pinbS = MatrixMultiply(pinv, transposed, SUPERCLUSTERCOUNT, MAX, SUPERCLUSTERCOUNT);
-
 	double** theta = initiateMatrix(SUPERCLUSTERCOUNT, OUTPUTCOUNT);
+	delay(500);
 	for (size_t i = 0; i < OUTPUTCOUNT; i++)
 	{
 		double ** ycTemp = initiateMatrix(MAX, 1);
@@ -394,6 +437,8 @@ double** RbfTrainer(Node xTrain[MAX], int yTrain[MAX], int centersPerCat, Centro
 			theta[j][i] = thetaTemp[j][0];
 		}
 	}
+	printf("Theta Values Has been found\n");
+	delay(500);
 	return theta;
 }
 double** initiateMatrix(int x, int y) {
